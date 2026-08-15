@@ -305,7 +305,7 @@ export default function App() {
             <div className="inline-flex p-3.5 bg-indigo-50 text-indigo-600 rounded-2xl border border-indigo-100 mb-3">
               <Boxes size={32} />
             </div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">Mercy Jeans System</h1>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">Jeans System</h1>
             <p className="text-xs text-slate-500 mt-1">Plataforma de Control e Inventario</p>
           </div>
 
@@ -411,7 +411,7 @@ export default function App() {
               <Boxes size={22} />
             </div>
             <div>
-              <h2 className="font-bold text-slate-900 text-base leading-tight">Mercy Jeans</h2>
+              <h2 className="font-bold text-slate-900 text-base leading-tight">Jeans</h2>
               <p className="text-[11px] text-slate-500 font-medium">Control e Inventario</p>
             </div>
           </div>
