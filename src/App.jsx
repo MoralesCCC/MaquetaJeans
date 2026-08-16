@@ -4,8 +4,6 @@ import {
   ShoppingCart,
   LogOut,
   Search,
-  Plus,
-  Minus,
   Boxes,
   Warehouse,
   BarChart3,
@@ -23,7 +21,9 @@ import {
   Receipt,
   Edit3,
   Check,
-  EyeIcon
+  EyeIcon,
+  Plus,
+  Minus
 } from 'lucide-react';
 
 // ----------------------------------------------------
@@ -197,6 +197,39 @@ export default function App() {
     }
   };
 
+  const handleSetCartItemQty = (index, value) => {
+    if (value === '') {
+      const updatedCart = [...cart];
+      updatedCart[index].cantidad = '';
+      setCart(updatedCart);
+      return;
+    }
+
+    const numericValue = parseInt(value, 10);
+    if (isNaN(numericValue)) return;
+
+    const item = cart[index];
+    const jean = jeansList.find(j => j.id === item.jeanId);
+    const variante = jean?.variantes.find(v => v.colorNombre === item.colorNombre);
+    const stockMax = variante?.tallas[item.talla] || 0;
+
+    if (numericValue > stockMax) {
+      alert(`Límite de stock alcanzado (${stockMax} Und disp.)`);
+      const updatedCart = [...cart];
+      updatedCart[index].cantidad = stockMax;
+      setCart(updatedCart);
+      return;
+    }
+
+    if (numericValue <= 0) {
+      removeFromCart(index);
+    } else {
+      const updatedCart = [...cart];
+      updatedCart[index].cantidad = numericValue;
+      setCart(updatedCart);
+    }
+  };
+
   const removeFromCart = (index) => {
     setCart(cart.filter((_, i) => i !== index));
   };
@@ -205,7 +238,6 @@ export default function App() {
   const handleCheckout = () => {
     if (cart.length === 0) return;
 
-    // Descontar inventario
     setJeansList(prevList => {
       let updatedList = [...prevList];
       cart.forEach(cartItem => {
@@ -219,7 +251,7 @@ export default function App() {
                 ...v,
                 tallas: {
                   ...v.tallas,
-                  [cartItem.talla]: Math.max(0, (v.tallas[cartItem.talla] || 0) - cartItem.cantidad)
+                  [cartItem.talla]: Math.max(0, (v.tallas[cartItem.talla] || 0) - (Number(cartItem.cantidad) || 0))
                 }
               };
             })
@@ -229,8 +261,8 @@ export default function App() {
       return updatedList;
     });
 
-    const totalCobrado = cart.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
-    const totalPrendas = cart.reduce((acc, item) => acc + item.cantidad, 0);
+    const totalCobrado = cart.reduce((acc, item) => acc + (item.precio * (Number(item.cantidad) || 0)), 0);
+    const totalPrendas = cart.reduce((acc, item) => acc + (Number(item.cantidad) || 0), 0);
 
     const newSaleRecord = {
       id: `VEN-${100 + salesHistory.length + 1}`,
@@ -249,8 +281,9 @@ export default function App() {
     setTimeout(() => setSaleNotification(''), 5000);
   };
 
-  // AJUSTE DE BODEGA
-  const updateStock = (jeanId, colorNombre, talla, delta) => {
+  // MODIFICAR CANTIDAD DE BODEGA ESCRIBIENDO EL NÚMERO DIRECTAMENTE
+  const setStockDirectly = (jeanId, colorNombre, talla, value) => {
+    const numericValue = Math.max(0, parseInt(value) || 0);
     setJeansList(prev =>
       prev.map(jean => {
         if (jean.id !== jeanId) return jean;
@@ -258,10 +291,9 @@ export default function App() {
           ...jean,
           variantes: jean.variantes.map(varItem => {
             if (varItem.colorNombre !== colorNombre) return varItem;
-            const currentStock = varItem.tallas[talla] || 0;
             return {
               ...varItem,
-              tallas: { ...varItem.tallas, [talla]: Math.max(0, currentStock + delta) }
+              tallas: { ...varItem.tallas, [talla]: numericValue }
             };
           })
         };
@@ -292,7 +324,7 @@ export default function App() {
     setLoginError('');
   };
 
-  const totalItemsEnCarrito = cart.reduce((acc, item) => acc + item.cantidad, 0);
+  const totalItemsEnCarrito = cart.reduce((acc, item) => acc + (Number(item.cantidad) || 0), 0);
 
   // ----------------------------------------------------
   // LOGIN SCREEN
@@ -416,7 +448,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* NAVEGACIÓN: EL ADMIN PUEDE VER TODAS LAS PESTAÑAS */}
           <nav className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
             {(currentUser.role === 'admin' || currentUser.role === 'ventas') && (
               <button
@@ -450,7 +481,6 @@ export default function App() {
           </nav>
 
           <div className="flex items-center gap-3">
-            {/* BOTÓN CARRITO SOLO VISIBLE PARA EL ASESOR DE VENTAS */}
             {currentUser.role === 'ventas' && (
               <button
                 onClick={() => setIsCartOpen(true)}
@@ -494,7 +524,7 @@ export default function App() {
       <main className="flex-1 p-6 max-w-7xl w-full mx-auto space-y-6">
 
         {/* ---------------------------------------------------- */}
-        {/* PESTAÑA 1: CATÁLOGO DE VENTAS (VENTAS + ADMIN)       */}
+        {/* PESTAÑA 1: CATÁLOGO DE VENTAS                        */}
         {/* ---------------------------------------------------- */}
         {activeTab === 'ventas' && (currentUser.role === 'ventas' || currentUser.role === 'admin') && (
           <div className="space-y-6">
@@ -535,13 +565,15 @@ export default function App() {
         )}
 
         {/* ---------------------------------------------------- */}
-        {/* PESTAÑA 2: CONTROL DE BODEGA (BODEGA + ADMIN)        */}
+        {/* PESTAÑA 2: CONTROL DE BODEGA (MODIFICACIÓN DIRECTA)  */}
         {/* ---------------------------------------------------- */}
         {activeTab === 'bodega' && (currentUser.role === 'bodega' || currentUser.role === 'admin') && (
           <div className="space-y-6">
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
               <h3 className="text-base font-bold text-slate-900">Control de Unidades en Bodega</h3>
-              <p className="text-xs text-slate-500">Gestión de prendas físicas por variante de color y talla (Sin visualización de precios)</p>
+              <p className="text-xs text-slate-500">
+                Escriba directamente la cantidad de unidades en cada talla para modificar el inventario de manera rápida y manual (Sin visualización de precios).
+              </p>
             </div>
 
             <div className="space-y-4">
@@ -564,7 +596,7 @@ export default function App() {
                         key={idx}
                         jeanId={jean.id}
                         variante={variante}
-                        onUpdateStock={updateStock}
+                        onSetStockDirectly={setStockDirectly}
                       />
                     ))}
                   </div>
@@ -580,7 +612,6 @@ export default function App() {
         {activeTab === 'admin' && currentUser.role === 'admin' && (
           <div className="space-y-6">
 
-            {/* KPI METRICAS DE HOY */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
                 <div className="flex justify-between items-center mb-2">
@@ -620,7 +651,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* TABLA DE VENTAS REALIZADAS HOY */}
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3">
               <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
                 <Receipt className="text-purple-600" size={20} />
@@ -664,7 +694,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* SECCIÓN DE AJUSTE Y CONTROL DE PRECIOS */}
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
               <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
                 <Edit3 className="text-indigo-600" size={20} />
@@ -690,9 +719,7 @@ export default function App() {
 
       </main>
 
-      {/* ---------------------------------------------------- */}
-      {/* DRAWER DEL CARRITO (SOLO ROL VENTAS)                 */}
-      {/* ---------------------------------------------------- */}
+      {/* DRAWER DEL CARRITO */}
       {isCartOpen && currentUser.role === 'ventas' && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex justify-end">
           <div className="bg-white w-full max-w-md h-full flex flex-col justify-between p-6 shadow-2xl relative">
@@ -732,7 +759,7 @@ export default function App() {
                           <span className="font-bold text-slate-700">Talla {item.talla}</span>
                         </div>
                         <p className="text-xs font-bold text-indigo-600 mt-1">
-                          ${(item.precio * item.cantidad).toLocaleString()} COP
+                          ${(item.precio * (Number(item.cantidad) || 0)).toLocaleString()} COP
                         </p>
                       </div>
 
@@ -743,7 +770,17 @@ export default function App() {
                         >
                           <Minus size={12} />
                         </button>
-                        <span className="text-xs font-black w-5 text-center">{item.cantidad}</span>
+                        <input
+                          type="text"
+                          value={item.cantidad}
+                          onChange={(e) => handleSetCartItemQty(index, e.target.value)}
+                          onBlur={() => {
+                            if (item.cantidad === '') {
+                              removeFromCart(index);
+                            }
+                          }}
+                          className="text-xs font-black w-8 text-center bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-indigo-500 rounded p-0"
+                        />
                         <button
                           onClick={() => updateCartItemQty(index, 1)}
                           className="p-1 hover:bg-slate-100 text-slate-600 rounded"
@@ -768,7 +805,7 @@ export default function App() {
               <div className="flex justify-between font-black text-slate-900 text-base">
                 <span>Total a Cobrar:</span>
                 <span className="text-indigo-600">
-                  ${cart.reduce((a, b) => a + (b.precio * b.cantidad), 0).toLocaleString()} COP
+                  ${cart.reduce((a, b) => a + (b.precio * (Number(b.cantidad) || 0)), 0).toLocaleString()} COP
                 </span>
               </div>
 
@@ -793,7 +830,7 @@ export default function App() {
 }
 
 // ----------------------------------------------------
-// TARJETA DE CATÁLOGO (VENTAS & AUDITORÍA ADMIN)
+// TARJETA DE CATÁLOGO
 // ----------------------------------------------------
 function JeanCatalogCard({ jean, userRole, onAddToCart }) {
   const [selectedColorIdx, setSelectedColorIdx] = useState(0);
@@ -868,7 +905,6 @@ function JeanCatalogCard({ jean, userRole, onAddToCart }) {
               </span>
             </div>
 
-            {/* SI ES ROL VENTAS: TIENE BOTÓN DE AGREGAR AL CARRITO */}
             {userRole === 'ventas' && (
               <button
                 type="button"
@@ -883,7 +919,6 @@ function JeanCatalogCard({ jean, userRole, onAddToCart }) {
               </button>
             )}
 
-            {/* SI ES ROL ADMIN: MUESTRA INDICADOR DE AUDITORÍA */}
             {userRole === 'admin' && (
               <div className="text-[11px] text-purple-700 font-semibold text-center bg-purple-50 border border-purple-100 py-1.5 rounded-lg flex items-center justify-center gap-1">
                 <EyeIcon size={13} /> Modo Inspección Administrador
@@ -898,12 +933,9 @@ function JeanCatalogCard({ jean, userRole, onAddToCart }) {
 }
 
 // ----------------------------------------------------
-// BODEGA POR VARIANTE (SIN PRECIOS)
+// BODEGA POR VARIANTE (TODAS LAS TALLAS CON ENTRADA DIRECTA)
 // ----------------------------------------------------
-function BodegaColorRow({ jeanId, variante, onUpdateStock }) {
-  const [selectedTalla, setSelectedTalla] = useState('8');
-  const currentQty = variante.tallas[selectedTalla] || 0;
-
+function BodegaColorRow({ jeanId, variante, onSetStockDirectly }) {
   return (
     <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col justify-between space-y-3">
       <div className="flex items-center justify-between">
@@ -916,42 +948,20 @@ function BodegaColorRow({ jeanId, variante, onUpdateStock }) {
         </span>
       </div>
 
-      <div className="flex items-center gap-3 bg-white p-2.5 rounded-xl border border-slate-200">
-        <div className="flex-1">
-          <label className="text-[9px] font-bold uppercase text-slate-400 block mb-1">Seleccionar Talla</label>
-          <select
-            value={selectedTalla}
-            onChange={(e) => setSelectedTalla(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 p-1.5 focus:outline-none focus:border-indigo-600"
-          >
-            {Object.keys(variante.tallas).map((t) => (
-              <option key={t} value={t}>
-                Talla {t} (Actual: {variante.tallas[t]} Und)
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="flex flex-col items-center justify-center">
-          <span className="text-[9px] font-bold text-slate-400 uppercase mb-1">Ajustar</span>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => onUpdateStock(jeanId, variante.colorNombre, selectedTalla, -1)}
-              className="p-1.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-700 rounded-lg border border-slate-200 shadow-sm transition"
-            >
-              <Minus size={12} />
-            </button>
-            <span className="w-8 text-center text-xs font-black text-slate-900">{currentQty}</span>
-            <button
-              type="button"
-              onClick={() => onUpdateStock(jeanId, variante.colorNombre, selectedTalla, 1)}
-              className="p-1.5 bg-slate-100 hover:bg-emerald-50 hover:text-emerald-600 text-slate-700 rounded-lg border border-slate-200 shadow-sm transition"
-            >
-              <Plus size={12} />
-            </button>
+      {/* GRILLA CON ENTRADA DIRECTA DE CADA TALLA SIN BOTONES */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 bg-white p-3 rounded-xl border border-slate-200">
+        {Object.keys(variante.tallas).map((tallaKey) => (
+          <div key={tallaKey} className="flex flex-col items-center bg-slate-50/70 p-2 rounded-lg border border-slate-100">
+            <span className="text-[10px] font-extrabold text-slate-500 uppercase mb-1">Talla {tallaKey}</span>
+            <input
+              type="number"
+              min="0"
+              value={variante.tallas[tallaKey]}
+              onChange={(e) => onSetStockDirectly(jeanId, variante.colorNombre, tallaKey, e.target.value)}
+              className="w-full text-center text-xs font-black text-slate-900 bg-white border border-slate-200 rounded-lg py-1.5 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 focus:outline-none transition [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            />
           </div>
-        </div>
+        ))}
       </div>
     </div>
   );
